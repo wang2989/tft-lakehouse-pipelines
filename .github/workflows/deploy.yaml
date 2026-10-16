@@ -6,6 +6,7 @@ on:
       - main
     paths:
       - 'src/ingestion/**'
+      - '.github/workflows/deploy.yaml'
 
 permissions:
   id-token: write   # Required for AWS OIDC authentication
