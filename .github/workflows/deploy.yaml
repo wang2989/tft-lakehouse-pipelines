@@ -1,0 +1,98 @@
+name: Deploy Ingestion Lambdas to AWS
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'src/ingestion/**'
+
+permissions:
+  id-token: write   # Required for AWS OIDC authentication
+  contents: read    # Required to checkout code
+
+jobs:
+  deploy-lambdas:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2  # Allows git diff against previous commit
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+
+      - name: Configure AWS Credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}  # Change to vars.AWS_ROLE_ARN if using a private repo variable
+          aws-region: us-east-2
+
+      - name: Identify and Deploy Modified Lambdas
+        run: |
+          set -e
+
+          # Check if common utilities changed
+          COMMON_CHANGED=false
+          if git diff --name-only HEAD~1 HEAD | grep -q "^src/ingestion/common/"; then
+            echo "Shared utilities in common/ changed. Triggering full redeployment of all Lambdas."
+            COMMON_CHANGED=true
+          fi
+
+          # Explicit mapping: "local_directory:aws_lambda_function_name"
+          MAPPINGS=(
+            "twitch:tft-lakehouse-ingestion-twitch"
+            "reddit:tft-lakehouse-ingestion-reddit"
+            "youtube:tft-lakehouse-ingestion-youtube"
+            "metatft:tft-lakehouse-ingestion-metatft"
+            "riot:tft-lakehouse-ingestion-riot"
+            "patch-notes:tft-lakehouse-ingestion-patch-notes"
+          )
+
+          for ITEM in "${MAPPINGS[@]}"; do
+            DIR="${ITEM%%:*}"
+            FUNC="${ITEM##*:}"
+            FUNC_DIR="src/ingestion/$DIR"
+
+            if [ -d "$FUNC_DIR" ]; then
+              if [ "$COMMON_CHANGED" = true ] || git diff --name-only HEAD~1 HEAD | grep -q "^$FUNC_DIR/"; then
+                echo "===================================================="
+                echo "Building from $FUNC_DIR/ -> Deploying to AWS Lambda: $FUNC"
+                echo "===================================================="
+
+                BUILD_DIR=$(mktemp -d)
+
+                # 1. Install dependencies
+                if [ -s "$FUNC_DIR/requirements.txt" ]; then
+                  pip install --no-cache-dir -r "$FUNC_DIR/requirements.txt" -t "$BUILD_DIR"
+                fi
+
+                # 2. Bundle common logic
+                if [ -d "src/ingestion/common" ]; then
+                  cp -r src/ingestion/common "$BUILD_DIR/"
+                fi
+
+                # 3. Copy handler files
+                cp -r "$FUNC_DIR"/* "$BUILD_DIR/"
+
+                # 4. Zip build directory
+                cd "$BUILD_DIR"
+                zip -rq "$GITHUB_WORKSPACE/$DIR.zip" .
+                cd "$GITHUB_WORKSPACE"
+
+                # 5. Push to the exact AWS function name
+                aws lambda update-function-code \
+                  --function-name "$FUNC" \
+                  --zip-file "fileb://$GITHUB_WORKSPACE/$DIR.zip" \
+                  --publish
+
+                echo "Deployment successful for $FUNC."
+                rm -rf "$BUILD_DIR" "$GITHUB_WORKSPACE/$DIR.zip"
+              else
+                echo "No changes detected in $FUNC_DIR. Skipping $FUNC."
+              fi
+            fi
+          done
