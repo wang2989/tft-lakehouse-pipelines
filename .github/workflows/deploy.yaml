@@ -28,8 +28,9 @@ jobs:
       - name: Configure AWS Credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}  # Change to vars.AWS_ROLE_ARN if using a private repo variable
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: us-east-2
+          audience: sts.amazonaws.com
 
       - name: Identify and Deploy Modified Lambdas
         run: |
