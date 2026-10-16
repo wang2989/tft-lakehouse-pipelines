@@ -19,7 +19,7 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: 2  # Allows git diff against previous commit
+          fetch-depth: 0  # Full history for accurate diffs across multi-commit pushes
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -34,12 +34,28 @@ jobs:
           audience: sts.amazonaws.com
 
       - name: Identify and Deploy Modified Lambdas
+        env:
+          BEFORE_SHA: ${{ github.event.before }}
+          AFTER_SHA: ${{ github.sha }}
         run: |
           set -e
 
+          # Compute the changed files once for the whole push
+          if [ -z "$BEFORE_SHA" ] || [ "$BEFORE_SHA" = "0000000000000000000000000000000000000000" ] \
+             || ! git cat-file -e "$BEFORE_SHA^{commit}" 2>/dev/null; then
+            # First push / new branch / unreachable base: compare against the parent commit
+            echo "No usable base SHA; comparing $AFTER_SHA against its parent."
+            CHANGED_FILES=$(git diff-tree --no-commit-id --name-only -r -m --root "$AFTER_SHA")
+          else
+            echo "Comparing changes from $BEFORE_SHA to $AFTER_SHA"
+            CHANGED_FILES=$(git diff --name-only "$BEFORE_SHA" "$AFTER_SHA")
+          fi
+          echo "Changed files:"
+          echo "$CHANGED_FILES"
+
           # Check if common utilities changed
           COMMON_CHANGED=false
-          if git diff --name-only HEAD~1 HEAD | grep -q "^src/ingestion/common/"; then
+          if echo "$CHANGED_FILES" | grep -q "^src/ingestion/common/"; then
             echo "Shared utilities in common/ changed. Triggering full redeployment of all Lambdas."
             COMMON_CHANGED=true
           fi
@@ -60,7 +76,7 @@ jobs:
             FUNC_DIR="src/ingestion/$DIR"
 
             if [ -d "$FUNC_DIR" ]; then
-              if [ "$COMMON_CHANGED" = true ] || git diff --name-only HEAD~1 HEAD | grep -q "^$FUNC_DIR/"; then
+              if [ "$COMMON_CHANGED" = true ] || echo "$CHANGED_FILES" | grep -q "^$FUNC_DIR/"; then
                 echo "===================================================="
                 echo "Building from $FUNC_DIR/ -> Deploying to AWS Lambda: $FUNC"
                 echo "===================================================="
