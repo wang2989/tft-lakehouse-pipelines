@@ -1,0 +1,96 @@
+# ==============================================================================
+# Byte-compiled / Optimized / DLLs
+# ==============================================================================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# ==============================================================================
+# Virtual Environments (Local Development)
+# ==============================================================================
+.venv/
+venv/
+ENV/
+env/
+env.bak/
+venv.bak/
+
+# ==============================================================================
+# Secrets, Credentials, & API Keys (CRITICAL)
+# ==============================================================================
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+credentials.json
+client_secrets.json
+aws_credentials
+.aws/
+
+# ==============================================================================
+# AWS Lambda Packaging & CI/CD Artifacts
+# ==============================================================================
+# Ignore local deployment zip archives built for Lambda
+*.zip
+# Target directories used when testing `pip install -t` locally
+package/
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# ==============================================================================
+# Local Data Dumps & Payload Testing
+# ==============================================================================
+# Prevent accidentally committing raw API test payloads or large JSON outputs
+data/
+landing_local/
+test_payloads/
+*.parquet
+*.avro
+*.csv
+# If testing ingestion locally, ignore ad-hoc JSON landing dumps (keep configs)
+src/ingestion/**/raw_*.json
+src/ingestion/**/test_*.json
+
+# ==============================================================================
+# Databricks, Apache Spark, & Delta Lake Local Artifacts
+# ==============================================================================
+# Spark local metastore and execution logs
+metastore_db/
+derby.log
+spark-warehouse/
+# Local Delta Lake log and checkpoint directories
+_delta_log/
+checkpoint/
+checkpoints/
+.checkpoint/
+# Databricks CLI / Databricks Connect session configs
+.databricks/
+
+# ==============================================================================
+# Jupyter Notebooks & EDA
+# ==============================================================================
+.ipynb_checkpoints
+*-checkpoint.ipynb
+
+# ==============================================================================
+# Testing & Code Quality
+# ==============================================================================
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+
+# ==============================================================================
+# Operating System & IDE Specific
+# ==============================================================================
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo
